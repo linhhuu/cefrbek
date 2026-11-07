@@ -1,6 +1,10 @@
+import os
 import asyncio
 import sqlite3
+import threading
 from datetime import datetime
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart, Command
 from aiogram.types import (
@@ -12,12 +16,29 @@ from aiogram.types import (
 from aiogram.enums import ChatMemberStatus
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+# ================= RENDER UCHUN VEB-PORT =================
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b"CEFR Telegram Bot is Live and Healthy!")
+    def log_message(self, format, *args):
+        pass  # Konsol toza turishi uchun
+
+def start_health_check_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    print(f"Render veb-porti {port}-portda ishga tushdi...")
+
 # ================= SOZLAMALAR =================
 BOT_TOKEN = "9179828460:AAFNOvJrENya-8IuVs9yuHF8wOEBs-tGygg"
-CHANNEL_ID = "-1004486360988"  # Masalan: "@cefr_uzb" (Bot kanalda ADMIN bo'lishi shart!)
+CHANNEL_ID = "@uzcold"  # Bot kanalda ADMIN bo'lishi shart
 CHANNEL_URL = "https://t.me/uzcold"
 WEBAPP_URL = "https://cefrbek.vercel.app/"
-ADMIN_ID = 1958417797  # O'zingizning Telegram ID raqamingiz
+ADMIN_ID = 1958417797  # Telegram ID raqamingiz
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -67,7 +88,7 @@ async def is_subscribed(user_id: int) -> bool:
         ]
     except Exception as e:
         print(f"Obuna tekshirishda xatolik: {e}")
-        return True  # Agar xato bo'lsa foydalanuvchini to'sib qo'ymaslik uchun
+        return True
 
 def get_sub_keyboard():
     return InlineKeyboardMarkup(
@@ -91,10 +112,8 @@ async def start_cmd(message: types.Message):
     first_name = message.from_user.first_name
     username = message.from_user.username or ""
 
-    # Foydalanuvchini bazaga qo'shish
     add_user(user_id, first_name, username)
 
-    # Obunani tekshirish
     if not await is_subscribed(user_id):
         await message.answer(
             f"Salom, <b>{first_name}</b>!\n\n"
@@ -105,7 +124,6 @@ async def start_cmd(message: types.Message):
         )
         return
 
-    # A'zo bo'lgan bo'lsa xush kelibsiz xabari
     await message.answer(
         f"Assalomu alaykum, <b>{first_name}</b>!\n\n"
         "🎯 <b>CEFR Multi-Level 30-Day Challenge</b> botiga xush kelibsiz.\n"
@@ -128,7 +146,6 @@ async def check_sub_callback(call: CallbackQuery):
     else:
         await call.answer("❌ Siz hali kanalga a'zo bo'lmadingiz! Iltimos, kanalga obuna bo'ling.", show_alert=True)
 
-# Admin uchun statistika buyrug'i (/stats)
 @dp.message(Command("stats"))
 async def stats_cmd(message: types.Message):
     if message.from_user.id == ADMIN_ID:
@@ -137,7 +154,6 @@ async def stats_cmd(message: types.Message):
 
 # ================= KUNLIK AVTOMATIK ESLATMALAR =================
 async def morning_reminder():
-    """Har kuni ertalab 05:30 da yuboriladi"""
     users = get_all_users()
     msg = (
         "☀️ <b>Xayrli tong, CEFR chempioni!</b>\n\n"
@@ -147,36 +163,13 @@ async def morning_reminder():
     for u_id in users:
         try:
             await bot.send_message(u_id, msg, reply_markup=get_webapp_keyboard(), parse_mode="HTML")
-            await asyncio.sleep(0.05)  # Telegram spam limitiga tushmaslik uchun
-        except Exception:
-            pass
-
-async def evening_reminder():
-    """Har kuni kechqurun 20:30 da yuboriladi"""
-    users = get_all_users()
-    msg = (
-        "🌙 <b>Kun yakuni yaqinlashmoqda!</b>\n\n"
-        "Bugungi mock test ballaringizni kiritdingizmi? Xatolaringizni tahlil qilib chiqdingizmi?\n"
-        "Hozir ilovani oching va <b>«Kunni Yakunlash»</b> tugmasini bosib, bugungi o'sishingizni kechagi kun bilan solishtiring! 📊"
-    )
-    for u_id in users:
-        try:
-            await bot.send_message(u_id, msg, reply_markup=get_webapp_keyboard(), parse_mode="HTML")
             await asyncio.sleep(0.05)
         except Exception:
             pass
 
-# ================= ASOSIY ISHGA TUSHIRISH =================
-async def main():
-    init_db()
-
-    # Eslatma vaqtlarini sozlash (Toshkent vaqti bilan)
-    scheduler.add_job(morning_reminder, "cron", hour=5, minute=30)
-    scheduler.add_job(evening_reminder, "cron", hour=20, minute=30)
-    scheduler.start()
-
-    print("Bot muvaffaqiyatli ishga tushdi va eslatmalar faollashdi...")
-    await dp.start_polling(bot)
-
-if __name__ == "__main__":
-    asyncio.run(main())
+async def evening_reminder():
+    users = get_all_users()
+    msg = (
+        "🌙 <b>Kun yakuni yaqinlashmoqda!</b>\n\n"
+        "Bugungi mock test ballaringizni kiritdingizmi? Xatolaringizni tahlil qilib chiqdingizmi?\n"
+        "Hozir ilovani
